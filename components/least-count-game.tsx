@@ -1,7 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Crown, Plus, Shield, Users, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Clipboard, Crown, Plus, Shield, Users, X } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import { useConvexAvailability } from '@/app/convex-provider'
 import {
   beginGame,
   discardCards,
@@ -10,6 +13,7 @@ import {
   handScore,
   nextRound,
   scoreRound,
+  startRound,
   type Card,
   type Game,
   type Player,
@@ -65,7 +69,7 @@ function RoundSummary({ game, onNext, onExit }: { game: Game; onNext: () => void
   return <main className="summary-screen"><div className="summary-card"><span className="eyebrow">{finished ? 'GAME OVER' : `ROUND ${game.round} COMPLETE`}</span><h1>{finished ? `${winner?.name ?? 'No one'} wins.` : 'Cards on the table.'}</h1><p className="summary-subtitle">{finished ? 'The last player standing takes the table.' : `${game.players.find((player) => player.id === game.roundResult?.declarer)?.name} called Least Count ${game.roundResult?.successful ? 'and got it right.' : 'but missed.'}`}</p><div className="result-table"><div className="result-head"><span>PLAYER</span><span>REVEALED CARDS</span><span>HAND</span><span>ROUND</span><span>TOTAL</span></div>{game.players.map((player) => { const score = game.roundResult?.scores.find((item) => item.playerId === player.id); const revealedHand = game.hands[player.id] ?? []; return <div className={`result-row ${player.eliminated ? 'eliminated-row' : ''}`} key={player.id}><span>{player.name}{player.eliminated && <small> ELIMINATED</small>}</span><span className="revealed-cards">{revealedHand.map((card) => `${card.rank === 'JOKER' ? 'Joker' : card.rank}${card.suit}`).join(' · ') || 'Empty hand'}</span><span>{score?.handScore ?? '—'}</span><span>{score?.roundPoints ?? 0}</span><b>{player.total}</b></div> })}</div><div className="summary-actions"><button className="secondary-action" type="button" onClick={onExit}><ArrowLeft size={15} /> EXIT TO LOBBY</button><button className="start-game-button" type="button" onClick={onNext} disabled={finished}>NEXT ROUND <ArrowRight size={16} /></button></div></div></main>
 }
 
-function GameTable({ game, onGameChange, onEndRound, onExit }: { game: Game; onGameChange: (game: Game, handoff: boolean) => void; onEndRound: (game: Game) => void; onExit: () => void }) {
+function GameTable({ game, onGameChange, onEndRound, onExit, roomCode, error }: { game: Game; onGameChange: (game: Game, handoff: boolean) => void; onEndRound: (game: Game) => void; onExit: () => void; roomCode?: string; error?: string }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [notice, setNotice] = useState('Choose one card, or several cards of the same rank.')
   const [showConfirm, setShowConfirm] = useState(false)
@@ -110,6 +114,12 @@ function GameTable({ game, onGameChange, onEndRound, onExit }: { game: Game; onG
   }
 
   function declareLeastCount() {
+    if (roomCode) {
+      if (score > 5) { setNotice('Your hand must total 5 points or less before calling Least Count.'); setShowConfirm(false); return }
+      setShowConfirm(false)
+      onEndRound(game)
+      return
+    }
     const updated = scoreRound(game, player.id)
     if (!updated.roundResult) { setNotice('Your hand must total 5 points or less before calling Least Count.'); setShowConfirm(false); return }
     setShowConfirm(false)
@@ -117,11 +127,11 @@ function GameTable({ game, onGameChange, onEndRound, onExit }: { game: Game; onG
   }
 
   return <main className="game-shell">
-    <header className="topbar"><a className="brand" href="#home" aria-label="Least Count home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>LOCAL PASS-AND-PLAY</small></span></a><div className="room-meta"><span className="live-dot" /> {game.players.length} PLAYERS <b>·</b> <span>ROUND {String(game.round).padStart(2, '0')}</span><span className="room-code">TABLE {String(game.startingPlayerIndex + 1).padStart(2, '0')}</span></div><button className="exit-game" type="button" onClick={onExit}><ArrowLeft size={14} /> LOBBY</button></header>
+    <header className="topbar"><a className="brand" href="#home" aria-label="Least Count home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>{roomCode ? 'ONLINE TABLE' : 'LOCAL PASS-AND-PLAY'}</small></span></a><div className="room-meta"><span className="live-dot" /> {game.players.length} PLAYERS <b>·</b> <span>ROUND {String(game.round).padStart(2, '0')}</span><span className="room-code">{roomCode ? `ROOM ${roomCode}` : `TABLE ${String(game.startingPlayerIndex + 1).padStart(2, '0')}`}</span></div><button className="exit-game" type="button" onClick={onExit}><ArrowLeft size={14} /> LOBBY</button></header>
     <div className="game-layout"><section className="table-column" aria-label="Game table"><div className="round-strip"><span className="round-pill">ROUND {String(game.round).padStart(2, '0')}</span><span className="round-note">First to 101 is out <span>·</span> Last player standing wins</span><span className="active-turn-label"><span className="pulse-dot" /> {player.name.toUpperCase()}’S TURN</span></div>
       <div className="felt-table"><div className="table-inner-line" />
         <div className={`opponent-roster opponent-count-${visibleOpponents.length}`}>{visibleOpponents.map((other, index) => <PlayerToken key={other.id} player={other} active={other.id === game.currentPlayerId} count={game.hands[other.id]?.length ?? 0} />)}</div>
-        <div className="table-center"><div className="table-caption"><span className="pulse-dot" /> {notice}</div><div className="play-area">
+        <div className="table-center"><div className="table-caption" role={error ? 'alert' : undefined}><span className="pulse-dot" /> {error || notice}</div><div className="play-area">
           <button type="button" className={`deck-stack pile-button ${selected.length ? 'pile-ready' : ''}`} aria-label={`Closed deck, ${game.drawPile.length} cards`} onClick={() => choosePile('closed')}><span className="deck-card deck-under" /><span className="deck-card deck-middle" /><span className="playing-card card-back deck-top"><span className="back-pattern" /></span><span className="pile-label">CLOSED DECK <b>{game.drawPile.length}</b></span></button>
           <button type="button" className={`discard-slot pile-button ${selected.length ? 'pile-ready' : ''}`} aria-label={`Open discard pile, ${game.discardPile.length} cards`} onClick={() => choosePile('open')}><PlayingCard card={openCard} className="discard-card" /><span className="pile-label">OPEN PILE <b>{game.discardPile.length}</b></span></button>
         </div><div className="joker-indicator"><span className="joker-label">WILD RANK</span><span className="joker-card">{game.jokerRank === 'JOKER' ? '★' : game.jokerRank}<span>♦</span></span><span className="joker-copy">All {game.jokerRank === 'JOKER' ? 'printed jokers' : `${game.jokerRank}s`} are <b>zero</b></span></div></div>
@@ -133,7 +143,7 @@ function GameTable({ game, onGameChange, onEndRound, onExit }: { game: Game; onG
   </main>
 }
 
-export function LeastCountGame() {
+function LocalLeastCountGame() {
   const [screen, setScreen] = useState<Screen>('setup')
   const [game, setGame] = useState<Game | null>(null)
   const [firstHandoff, setFirstHandoff] = useState(true)
@@ -165,4 +175,178 @@ export function LeastCountGame() {
   if (screen === 'round' || screen === 'winner' || game.roundResult) return <RoundSummary game={game} onNext={beginNextRound} onExit={returnToSetup} />
   if (screen === 'handoff' && activePlayer) return <TurnHandoff player={activePlayer} first={firstHandoff} onReady={() => { setFirstHandoff(false); setScreen('table') }} />
   return <GameTable game={game} onGameChange={updateGame} onEndRound={closeRound} onExit={returnToSetup} />
+}
+
+type RoomPlayer = { id: string; name: string; isHost: boolean }
+type OnlineRoom = { roomCode: string; status: 'lobby' | 'playing'; players: RoomPlayer[]; revision: number; game: Game | null; viewerId: string | null; isHost: boolean }
+
+function createPlayerCredentials() {
+  const token = crypto.randomUUID()
+  return { playerToken: token, playerId: `player-${crypto.randomUUID()}` }
+}
+
+function OnlineSetup({
+  initialRoomCode,
+  onCreate,
+  onJoin,
+  onLocal,
+  players,
+  joiningStarted,
+  error,
+}: {
+  initialRoomCode: string
+  onCreate: (name: string) => Promise<void>
+  onJoin: (name: string, code: string) => Promise<void>
+  onLocal: () => void
+  players?: RoomPlayer[]
+  joiningStarted?: boolean
+  error: string
+}) {
+  const [name, setName] = useState('')
+  const [code, setCode] = useState(initialRoomCode)
+  const [busy, setBusy] = useState(false)
+  const [localError, setLocalError] = useState('')
+  async function submit(action: 'create' | 'join') {
+    if (busy) return
+    if (!name.trim()) { setLocalError('Enter your name first.'); return }
+    setLocalError('')
+    setBusy(true)
+    try {
+      if (action === 'create') await onCreate(name.trim())
+      else await onJoin(name.trim(), code)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return <main className="setup-screen">
+    <header className="setup-header"><a className="brand" href="#home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>THE CARD TABLE</small></span></a><span className="setup-local"><span className="live-dot" /> ONLINE ROOMS</span></header>
+    <section className="setup-content online-setup-content">
+      <div className="setup-kicker"><span className="live-dot" /> PLAY TOGETHER · SHARE A ROOM LINK</div>
+      <h1>Same table.<br /><em>Different places.</em></h1>
+      <p className="setup-description">Create a private room, send your friend the link, and play Least Count together with live turns and scores.</p>
+      <div className="setup-card online-card">
+        <span className="eyebrow">{joiningStarted ? 'JOIN YOUR FRIEND' : initialRoomCode ? 'ROOM INVITATION' : 'START A MULTIPLAYER TABLE'}</span>
+        <h2>{joiningStarted ? 'You’re almost at the table.' : initialRoomCode ? `Room ${initialRoomCode}` : 'What should we call you?'}</h2>
+        <label className="online-field-label" htmlFor="online-name">YOUR NAME</label>
+        <input className="online-field" id="online-name" maxLength={20} value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter your name" autoComplete="nickname" />
+        {joiningStarted && <div className="room-player-preview" aria-live="polite">{players?.map((player) => <span key={player.id}>{player.name}{player.isHost ? ' · HOST' : ''}</span>)}</div>}
+        {initialRoomCode && <><label className="online-field-label" htmlFor="room-code">ROOM ID</label><input className="online-field room-id-field" id="room-code" maxLength={8} value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} autoCapitalize="characters" /></>}
+        {(error || localError) && <p className="setup-error" role="alert">{localError || error}</p>}
+        {!joiningStarted && !initialRoomCode && <button className="start-game-button online-primary-button" type="button" disabled={busy} onClick={() => void submit('create')}>CREATE ROOM <ArrowRight size={17} /></button>}
+        {(initialRoomCode || joiningStarted) && <button className="start-game-button online-primary-button" type="button" disabled={busy || Boolean(joiningStarted && players?.length === 8)} onClick={() => void submit('join')}>{busy ? 'JOINING…' : 'JOIN ROOM'} <ArrowRight size={17} /></button>}
+        {!joiningStarted && !initialRoomCode && <div className="setup-footnote"><span><Shield size={13} /> No account needed</span><span>2–8 PLAYERS</span></div>}
+      </div>
+      <button type="button" className="local-mode-link" onClick={onLocal}>Or play on one device with pass-and-play</button>
+    </section>
+  </main>
+}
+
+function RoomLobby({ room, inviteLink, onStart, onLeave, onCopy, error }: { room: OnlineRoom; inviteLink: string; onStart: () => void; onLeave: () => void; onCopy: () => void; error: string }) {
+  return <main className="setup-screen"><header className="setup-header"><a className="brand" href="#home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>ONLINE LOBBY</small></span></a><span className="setup-local"><span className="live-dot" /> ROOM OPEN</span></header>
+    <section className="setup-content online-setup-content"><div className="setup-kicker"><span className="live-dot" /> ROOM {room.roomCode} · {room.players.length} / 8 PLAYERS</div><h1>Invite your<br /><em>tablemates.</em></h1><p className="setup-description">Send this link to your friend. Their seat will appear here as soon as they join.</p>
+      <div className="setup-card online-card"><div className="setup-card-heading"><div><span className="eyebrow">ROOM {room.roomCode}</span><h2>{room.players.length === 1 ? 'Waiting for players' : 'Ready to deal?'}</h2></div><span className="player-count"><Users size={14} /> {room.players.length} / 8</span></div>
+        <div className="lobby-player-list">{room.players.map((player, index) => <div className="lobby-player" key={player.id}><span className={`setup-avatar tone-${index % 4}`}>{player.name.charAt(0).toUpperCase()}</span><span>{player.name}<small>{player.isHost ? 'HOST' : 'JOINED'}</small></span><span className="lobby-connected"><i /> CONNECTED</span></div>)}</div>
+        {error && <p className="setup-error" role="alert">{error}</p>}
+        <label className="online-field-label" htmlFor="invite-url">INVITE LINK</label><div className="invite-link-row"><input id="invite-url" className="online-field" readOnly value={inviteLink} onFocus={(event) => event.currentTarget.select()} /><button className="copy-invite-button" type="button" onClick={onCopy}><Clipboard size={15} /> COPY</button></div>
+        {room.isHost && <button className="start-game-button online-primary-button" type="button" onClick={onStart} disabled={room.players.length < 2}>DEAL THE CARDS <ArrowRight size={17} /></button>}
+        {!room.isHost && <p className="waiting-copy" aria-live="polite">Waiting for {room.players.find((player) => player.isHost)?.name ?? 'the host'} to start the game…</p>}
+        <button className="local-mode-link lobby-leave" type="button" onClick={onLeave}>Leave room</button>
+      </div>
+    </section></main>
+}
+
+function MultiplayerGame({ initialRoomCode, onPlayLocal }: { initialRoomCode: string; onPlayLocal: () => void }) {
+  const [roomCode, setRoomCode] = useState(initialRoomCode.trim().toUpperCase())
+  const [playerToken, setPlayerToken] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [origin, setOrigin] = useState('')
+  const room = useQuery(api.rooms.getRoom, roomCode ? { roomCode, playerToken: playerToken ?? undefined } : 'skip') as OnlineRoom | null | undefined
+  const createRoom = useMutation(api.rooms.createRoom)
+  const joinRoom = useMutation(api.rooms.joinRoom)
+  const startGame = useMutation(api.rooms.startGame)
+  const updateGame = useMutation(api.rooms.updateGame)
+  const endRound = useMutation(api.rooms.endRound)
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+    if (!initialRoomCode) return
+    const token = window.sessionStorage.getItem(`least-count:${initialRoomCode.toUpperCase()}`)
+    if (token) setPlayerToken(token)
+  }, [initialRoomCode])
+
+  function savePlayer(code: string, token: string) {
+    window.sessionStorage.setItem(`least-count:${code}`, token)
+    setPlayerToken(token)
+    setRoomCode(code)
+    window.history.replaceState(null, '', `/?room=${encodeURIComponent(code)}`)
+  }
+
+  async function handleCreate(name: string) {
+    setError('')
+    const credentials = createPlayerCredentials()
+    try {
+      const code = await createRoom({ ...credentials, name })
+      savePlayer(code, credentials.playerToken)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not create the room. Try again.') }
+  }
+
+  async function handleJoin(name: string, code: string) {
+    setError('')
+    if (!code.trim()) { setError('Enter a room ID or open your friend’s invite link.'); return }
+    const normalizedCode = code.trim().toUpperCase()
+    const credentials = createPlayerCredentials()
+    try {
+      await joinRoom({ ...credentials, name, roomCode: normalizedCode })
+      savePlayer(normalizedCode, credentials.playerToken)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not join the room. Try again.') }
+  }
+
+  async function handleStart() {
+    if (!room || !room.isHost || room.players.length < 2) return
+    setError('')
+    const game = startRound(room.players.map((player) => ({ id: player.id, name: player.name, total: 0, eliminated: false, roundPoints: 0 })), 1, 0)
+    try { await startGame({ roomCode: room.roomCode, playerToken: playerToken!, game }) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not start the game.') }
+  }
+
+  async function commitGame(game: Game) {
+    if (!room || !playerToken) return
+    try { await updateGame({ roomCode: room.roomCode, playerToken, expectedRevision: room.revision, game }) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'The game did not sync. Try that move again.') }
+  }
+
+  function leaveRoom() {
+    if (roomCode) window.sessionStorage.removeItem(`least-count:${roomCode}`)
+    setRoomCode('')
+    setPlayerToken(null)
+    setError('')
+    window.history.replaceState(null, '', '/')
+  }
+
+  if (!roomCode) return <OnlineSetup initialRoomCode="" onCreate={handleCreate} onJoin={handleJoin} onLocal={onPlayLocal} error={error} />
+  if (room === undefined) return <main className="handoff-screen"><div className="handoff-card"><span className="eyebrow">CONNECTING TO ROOM</span><h1>Finding your table…</h1><p>Syncing room and player seats.</p></div></main>
+  if (!room) return <OnlineSetup initialRoomCode={roomCode} onCreate={handleCreate} onJoin={handleJoin} onLocal={onPlayLocal} error={error || 'Room not found. Check the room ID and try again.'} />
+  if (!room.viewerId) {
+    if (room.status === 'playing') return <main className="handoff-screen"><div className="handoff-card"><span className="eyebrow">GAME IN PROGRESS</span><h1>This table is already playing.</h1><p>New seats can only join before the host deals the cards.</p><button className="secondary-action" type="button" onClick={leaveRoom}><ArrowLeft size={15} /> BACK TO LOBBY</button></div></main>
+    return <OnlineSetup initialRoomCode={room.roomCode} onCreate={handleCreate} onJoin={handleJoin} onLocal={onPlayLocal} players={room.players} joiningStarted error={error} />
+  }
+  if (room.status === 'lobby' || !room.game) return <RoomLobby room={room} inviteLink={`${origin}/?room=${room.roomCode}`}  onStart={handleStart} onLeave={leaveRoom} onCopy={() => { void navigator.clipboard.writeText(`${window.location.origin}/?room=${room.roomCode}`).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1600) }) }} error={copied ? 'Invite link copied.' : error} />
+
+  const game = room.game
+  const activePlayer = game.players.find((player) => player.id === game.currentPlayerId)
+  if (!activePlayer) return <main className="handoff-screen"><div className="handoff-card"><span className="eyebrow">ROOM ERROR</span><h1>Couldn’t load this game.</h1><button className="secondary-action" type="button" onClick={leaveRoom}>RETURN TO LOBBY</button></div></main>
+  if (game.roundResult) return <RoundSummary game={game} onNext={() => {
+    const next = nextRound(game)
+    if (next) void commitGame(next)
+  }} onExit={leaveRoom} />
+  if (room.viewerId !== game.currentPlayerId) return <main className="handoff-screen"><div className="handoff-card"><div className="handoff-emblem"><Users size={25} /></div><span className="eyebrow">LIVE ROOM · {room.roomCode}</span><h1>{activePlayer.name} is playing.</h1><p>Your cards stay hidden. The table updates automatically when the turn passes to you.</p><div className="handoff-privacy"><span className="privacy-dot" /> {room.players.length} PLAYERS CONNECTED</div><button className="secondary-action" type="button" onClick={leaveRoom}><ArrowLeft size={15} /> LEAVE TABLE</button></div></main>
+  return <GameTable game={game} roomCode={room.roomCode} onGameChange={(next) => void commitGame(next)} onEndRound={() => { void endRound({ roomCode: room.roomCode, playerToken: playerToken!, expectedRevision: room.revision }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Could not score the round.')) }} onExit={leaveRoom} error={error} />
+}
+
+export function LeastCountGame({ initialRoomCode = '' }: { initialRoomCode?: string }) {
+  const convexAvailable = useConvexAvailability()
+  const [playLocal, setPlayLocal] = useState(false)
+  if (!convexAvailable || playLocal) return <LocalLeastCountGame />
+  return <MultiplayerGame initialRoomCode={initialRoomCode} onPlayLocal={() => setPlayLocal(true)} />
 }

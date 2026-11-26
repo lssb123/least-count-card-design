@@ -1,10 +1,11 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { ConvexClientProvider } from './convex-provider'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Least Count — The Card Table',
-  description: 'Set up a private local Least Count table for 2–8 players, then pass the device between turns.',
+  description: 'Create a shareable Least Count room and play live with friends, or pass the device around for local play.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -38,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased">
-        {children}
+        <ConvexClientProvider>{children}</ConvexClientProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
