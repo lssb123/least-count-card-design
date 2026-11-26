@@ -4,7 +4,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Least Count — The Card Table',
-  description: 'A premium multiplayer card table for Least Count.',
+  description: 'Set up a private local Least Count table for 2–8 players, then pass the device between turns.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -26,11 +26,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#101411',
 }
 
 export default function RootLayout({
