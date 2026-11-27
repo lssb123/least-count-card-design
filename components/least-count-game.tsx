@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Clipboard, Crown, Plus, RotateCw, Shield, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Clipboard, Crown, Plus, Shield, Users, X } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { useConvexAvailability } from '@/app/convex-provider'
 import {
@@ -131,7 +131,6 @@ function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode
   }
 
   return <main className="game-shell">
-    <div className="landscape-prompt" role="status"><RotateCw className="landscape-icon" aria-hidden="true" /><span className="eyebrow">A LITTLE MORE ROOM</span><h1>Turn your phone sideways</h1><p>Least Count is best played in landscape. Rotate your device to see the full table and your cards.</p></div>
     <header className="topbar"><a className="brand" href="#home" aria-label="Least Count home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>{roomCode ? 'ONLINE TABLE' : 'LOCAL PASS-AND-PLAY'}</small></span></a><div className="room-meta"><span className="live-dot" /> {game.players.length} PLAYERS <b>·</b> <span>ROUND {String(game.round).padStart(2, '0')}</span><span className="room-code">{roomCode ? `ROOM ${roomCode}` : `TABLE ${String(game.startingPlayerIndex + 1).padStart(2, '0')}`}</span></div><button className="exit-game" type="button" onClick={onExit}><ArrowLeft size={14} /> LOBBY</button></header>
     <div className="game-layout"><section className="table-column" aria-label="Game table"><div className="round-strip"><span className="round-pill">ROUND {String(game.round).padStart(2, '0')}</span><span className="round-note">First to 101 is out <span>·</span> Last player standing wins</span><span className="active-turn-label"><span className="pulse-dot" /> {turnPlayer.name.toUpperCase()}’S TURN</span></div>
       <div className="felt-table"><div className="table-inner-line" />
