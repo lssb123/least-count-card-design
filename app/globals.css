@@ -73,3 +73,6 @@ button { color: inherit; font: inherit; cursor: pointer; }
 @media(max-width:1050px){.game-shell .felt-table{height:540px;min-height:540px}}
 @media(max-width:760px){.game-shell .felt-table{height:520px;min-height:520px}.game-shell .opponent-roster{left:13px;right:13px;justify-content:center;gap:5px}.game-shell .table-center{top:35%}.game-shell .current-seat{bottom:43px}.game-shell .current-seat .hand-fan{height:118px}}
 @media(max-height:700px) and (min-width:761px){.game-shell .felt-table{height:clamp(455px,calc(100dvh - 170px),530px);min-height:455px}.game-shell .table-center{top:40%}.game-shell .table-center .joker-indicator{transform:translateY(-16px)}.game-shell .current-seat{bottom:18px}.game-shell .current-seat .your-tag{top:-11px}.game-shell .current-seat .hand-fan{height:118px}}
+.active-turn-label.is-your-turn{padding:6px 10px;border:1px solid #d3b87338;border-radius:999px;background:#d3b87312;color:#f0dc9c}
+.current-seat.is-your-turn .your-tag{border:1px solid #d3b87366;border-radius:999px;background:#d3b87318;box-shadow:0 0 14px #d3b87318;color:#f0dc9c}
+.current-seat.is-your-turn .your-live{box-shadow:0 0 0 3px #d3b87322,0 0 10px #d3b87380}

@@ -176,9 +176,9 @@ export const leaveGame = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const room = await ctx.db.query('rooms').withIndex('by_room_code', (q) => q.eq('roomCode', normalizeCode(args.roomCode))).unique()
-    if (!room || room.status !== 'playing' || !room.game) throw new Error('This game is no longer active.')
+    if (!room) return null
     const leavingPlayer = getPlayer(room, args.playerToken)
-    if (!leavingPlayer) throw new Error('Rejoin the room before leaving the game.')
+    if (!leavingPlayer || room.status !== 'playing' || !room.game) return null
     const gamePlayer = room.game.players.find((player: any) => player.id === leavingPlayer.id)
     if (!gamePlayer || gamePlayer.left) return null
 
