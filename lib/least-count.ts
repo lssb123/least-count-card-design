@@ -4,7 +4,7 @@ export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q
 export type Suit = (typeof SUITS)[number]
 export type Rank = (typeof RANKS)[number] | 'JOKER'
 export type Card = { id: string; rank: Rank; suit: Suit | '★'; deck: number }
-export type Player = { id: string; name: string; total: number; eliminated: boolean; roundPoints: number }
+export type Player = { id: string; name: string; total: number; eliminated: boolean; roundPoints: number; left?: boolean }
 export type Game = {
   players: Player[]
   hands: Record<string, Card[]>

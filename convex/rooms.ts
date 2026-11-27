@@ -14,6 +14,15 @@ function getPlayer(room: { players: Array<{ id: string; name: string; token: str
   return room.players.find((player) => player.token === token)
 }
 
+function nextPlayerAfterLeaving(players: any[], playerId: string) {
+  const index = players.findIndex((player) => player.id === playerId)
+  for (let offset = 1; offset < players.length; offset++) {
+    const candidate = players[(index + offset) % players.length]
+    if (!candidate.eliminated && !candidate.left) return candidate.id
+  }
+  return undefined
+}
+
 function validateGame(game: any, players: Array<{ id: string }>) {
   if (!game || typeof game !== 'object' || !Array.isArray(game.players) || !game.hands || typeof game.hands !== 'object') {
     throw new Error('The game state is invalid.')
@@ -158,6 +167,43 @@ export const endRound = mutation({
     })
     const game = { ...room.game, players, roundResult: { declarer: player.id, successful: lowerThanAll, scores } }
     await ctx.db.patch(room._id, { game, revision: room.revision + 1 })
+    return null
+  },
+})
+
+export const leaveGame = mutation({
+  args: { roomCode: v.string(), playerToken: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.query('rooms').withIndex('by_room_code', (q) => q.eq('roomCode', normalizeCode(args.roomCode))).unique()
+    if (!room || room.status !== 'playing' || !room.game) throw new Error('This game is no longer active.')
+    const leavingPlayer = getPlayer(room, args.playerToken)
+    if (!leavingPlayer) throw new Error('Rejoin the room before leaving the game.')
+    const gamePlayer = room.game.players.find((player: any) => player.id === leavingPlayer.id)
+    if (!gamePlayer || gamePlayer.left) return null
+
+    const players = room.game.players.map((player: any) => player.id === leavingPlayer.id
+      ? { ...player, left: true, eliminated: true }
+      : player)
+    const currentPlayerLeaving = room.game.currentPlayerId === leavingPlayer.id
+    const nextPlayerId = currentPlayerLeaving ? nextPlayerAfterLeaving(players, leavingPlayer.id) : room.game.currentPlayerId
+    const remainingPlayers = players.filter((player: any) => !player.eliminated && !player.left)
+    const game = {
+      ...room.game,
+      players,
+      currentPlayerId: nextPlayerId ?? room.game.currentPlayerId,
+      awaitingDraw: currentPlayerLeaving ? false : room.game.awaitingDraw,
+      previousOpenCard: currentPlayerLeaving ? null : room.game.previousOpenCard,
+    }
+    const roomPlayers = leavingPlayer.isHost && nextPlayerId
+      ? room.players.map((player) => ({ ...player, isHost: player.id === nextPlayerId }))
+      : room.players
+    await ctx.db.patch(room._id, {
+      players: roomPlayers,
+      game,
+      status: remainingPlayers.length ? 'playing' : 'ended',
+      revision: room.revision + 1,
+    })
     return null
   },
 })
