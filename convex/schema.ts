@@ -4,7 +4,7 @@ import { v } from 'convex/values'
 export default defineSchema({
   rooms: defineTable({
     roomCode: v.string(),
-    status: v.union(v.literal('lobby'), v.literal('playing')),
+    status: v.union(v.literal('lobby'), v.literal('playing'), v.literal('ended')),
     players: v.array(v.object({
       id: v.string(),
       name: v.string(),
