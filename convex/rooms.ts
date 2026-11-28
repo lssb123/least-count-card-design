@@ -132,9 +132,7 @@ function pointsForHand(hand: any[], wildRank: string) {
   return hand.reduce((total, card) => {
     if (card.rank === 'JOKER' || card.rank === wildRank) return total
     if (card.rank === 'A') return total + 1
-    if (card.rank === 'J') return total + 11
-    if (card.rank === 'Q') return total + 12
-    if (card.rank === 'K') return total + 13
+    if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') return total + 10
     return total + Number(card.rank)
   }, 0)
 }

@@ -30,7 +30,7 @@ function PlayingCard({ card, back = false, selected = false, onClick, className 
   return onClick ? <button type="button" aria-label={`${card.rank} of ${card.suit}`} aria-pressed={selected} className={`playing-card face-card ${redSuit(card.suit) ? 'red' : 'black'} ${selected ? 'selected' : ''} ${className}`} style={{ '--card-index': index } as React.CSSProperties} onClick={onClick}>{content}</button> : <div className={`playing-card ${redSuit(card.suit) ? 'red' : 'black'} ${className}`}>{content}</div>
 }
 
-function PlayerSetup({ onStart }: { onStart: (names: string[]) => void }) {
+function PlayerSetup({ onStart, onMultiplayer }: { onStart: (names: string[]) => void; onMultiplayer?: () => void }) {
   const [names, setNames] = useState(['Player 1', 'Player 2'])
   const [error, setError] = useState('')
   const [showRules, setShowRules] = useState(false)
@@ -50,6 +50,7 @@ function PlayerSetup({ onStart }: { onStart: (names: string[]) => void }) {
         <div className="setup-footnote"><span><Shield size={13} /> Cards stay private between turns</span><span>2–8 PLAYERS</span></div>
       </div>
       <div className="how-to-play"><div className="how-icon"><span>7</span><small>♦</small></div><p><strong>Quick rule</strong><br />Match the open card&apos;s rank to play without drawing. All cards of the round&apos;s wild rank score zero.</p><button type="button" aria-expanded={showRules} onClick={() => setShowRules((current) => !current)}>RULES <CircleHelp size={14} /></button></div>{showRules && <p className="setup-rules-note" role="note">On your turn, choose one card or any number of cards of the same rank. Click the open pile to play a matching rank without drawing. Otherwise, discard and draw from the open pile or closed deck. Wild-rank cards score zero. Keep your hand at five points or less to call Least Count.</p>}
+      {onMultiplayer && <button type="button" className="local-mode-link" onClick={onMultiplayer}>Switch to multiplayer</button>}
     </section>
   </main>
 }
@@ -66,7 +67,7 @@ function TurnHandoff({ player, onReady, first }: { player: Player; onReady: () =
 function RoundSummary({ game, onNext, onExit, exitLabel = 'EXIT TO LOBBY' }: { game: Game; onNext: () => void; onExit: () => void; exitLabel?: string }) {
   const winner = game.players.filter((player) => !player.eliminated).sort((a, b) => a.total - b.total)[0]
   const finished = !winner || game.players.filter((player) => !player.eliminated).length <= 1
-  return <main className="summary-screen"><div className="summary-card"><span className="eyebrow">{finished ? 'GAME OVER' : `ROUND ${game.round} COMPLETE`}</span><h1>{finished ? `${winner?.name ?? 'No one'} wins.` : 'Cards on the table.'}</h1><p className="summary-subtitle">{finished ? 'The last player standing takes the table.' : `${game.players.find((player) => player.id === game.roundResult?.declarer)?.name} called Least Count ${game.roundResult?.successful ? 'and got it right.' : 'but missed.'}`}</p><div className="result-table"><div className="result-head"><span>PLAYER</span><span>REVEALED CARDS</span><span>HAND</span><span>ROUND</span><span>TOTAL</span></div>{game.players.map((player) => { const score = game.roundResult?.scores.find((item) => item.playerId === player.id); const revealedHand = game.hands[player.id] ?? []; return <div className={`result-row ${player.eliminated ? 'eliminated-row' : ''}`} key={player.id}><span>{player.name}{player.left ? <small> LEFT</small> : player.eliminated && <small> ELIMINATED</small>}</span><span className="revealed-cards">{revealedHand.map((card) => `${card.rank === 'JOKER' ? 'Joker' : card.rank}${card.suit}`).join(' · ') || 'Empty hand'}</span><span>{score?.handScore ?? '—'}</span><span>{score?.roundPoints ?? 0}</span><b>{player.total}</b></div> })}</div><div className="summary-actions"><button className="secondary-action" type="button" onClick={onExit}><ArrowLeft size={15} /> {exitLabel}</button><button className="start-game-button" type="button" onClick={onNext} disabled={finished}>NEXT ROUND <ArrowRight size={16} /></button></div></div></main>
+  return <main className="summary-screen"><div className={`summary-card ${finished || game.roundResult?.successful ? 'summary-success' : 'summary-penalty'}`}><span className="eyebrow">{finished ? 'GAME OVER' : `ROUND ${game.round} COMPLETE`}</span><h1>{finished ? `${winner?.name ?? 'No one'} wins.` : 'Cards on the table.'}</h1><p className="summary-subtitle">{finished ? 'The last player standing takes the table.' : `${game.players.find((player) => player.id === game.roundResult?.declarer)?.name} called Least Count ${game.roundResult?.successful ? 'and got it right.' : 'but missed.'}`}</p><div className="result-table"><div className="result-head"><span>PLAYER</span><span>REVEALED CARDS</span><span>HAND</span><span>ROUND</span><span>TOTAL</span></div>{game.players.map((player) => { const score = game.roundResult?.scores.find((item) => item.playerId === player.id); const revealedHand = game.hands[player.id] ?? []; const roundWinner = game.roundResult?.successful && game.roundResult.declarer === player.id; const finalWinner = finished && winner?.id === player.id; const penalized = Boolean(score && game.roundResult?.declarer === player.id && !game.roundResult.successful && score.roundPoints > 0); return <div className={`result-row ${player.eliminated ? 'eliminated-row' : ''} ${penalized ? 'round-penalty' : ''} ${roundWinner ? 'round-winner' : ''} ${finalWinner ? 'game-winner' : ''}`} key={player.id}><span data-label="PLAYER">{player.name}{player.left ? <small> LEFT</small> : player.eliminated && <small> ELIMINATED</small>}</span><span className="revealed-cards" data-label="CARDS">{revealedHand.map((card) => `${card.rank === 'JOKER' ? 'Joker' : card.rank}${card.suit}`).join(' · ') || 'Empty hand'}</span><span data-label="HAND">{score?.handScore ?? '—'}</span><span data-label="ROUND">{score?.roundPoints ?? 0}</span><b data-label="TOTAL">{player.total}</b>{(penalized || roundWinner) && <small className="round-result-badge">{finalWinner ? 'GAME WINNER' : roundWinner ? 'ROUND WINNER' : `PENALTY +${score?.roundPoints}`}</small>}</div> })}</div><div className="summary-actions"><button className="secondary-action" type="button" onClick={onExit}><ArrowLeft size={15} /> {exitLabel}</button><button className="start-game-button" type="button" onClick={onNext} disabled={finished}>NEXT ROUND <ArrowRight size={16} /></button></div></div></main>
 }
 
 function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode, error, viewerId, isHost }: { game: Game; onGameChange: (game: Game, handoff: boolean) => void; onEndRound: (game: Game) => void; onEndGame?: () => void; onExit: () => void; roomCode?: string; error?: string; viewerId?: string | null; isHost?: boolean }) {
@@ -166,7 +167,7 @@ function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode
   </main>
 }
 
-function LocalLeastCountGame() {
+function LocalLeastCountGame({ onMultiplayer }: { onMultiplayer?: () => void }) {
   const [screen, setScreen] = useState<Screen>('setup')
   const [game, setGame] = useState<Game | null>(null)
   const [firstHandoff, setFirstHandoff] = useState(true)
@@ -193,7 +194,7 @@ function LocalLeastCountGame() {
   }
   function returnToSetup() { setGame(null); setScreen('setup'); setFirstHandoff(true) }
 
-  if (screen === 'setup' || !game) return <PlayerSetup onStart={start} />
+  if (screen === 'setup' || !game) return <PlayerSetup onStart={start} onMultiplayer={onMultiplayer} />
   if ((screen === 'handoff' || screen === 'winner') && activePlayer && !game.roundResult) return <TurnHandoff player={activePlayer} first={firstHandoff} onReady={() => { setFirstHandoff(false); setScreen('table') }} />
   if (screen === 'round' || screen === 'winner' || game.roundResult) return <RoundSummary game={game} onNext={beginNextRound} onExit={returnToSetup} />
   if (screen === 'handoff' && activePlayer) return <TurnHandoff player={activePlayer} first={firstHandoff} onReady={() => { setFirstHandoff(false); setScreen('table') }} />
@@ -238,6 +239,7 @@ function OnlineSetup({
 }) {
   const [code, setCode] = useState(initialRoomCode)
   const [codeEntry, setCodeEntry] = useState(Boolean(codeEntryRequired))
+  const [editingName, setEditingName] = useState(false)
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState('')
   async function submit(action: 'create' | 'join') {
@@ -258,7 +260,7 @@ function OnlineSetup({
     setLocalError('')
     setCodeEntry(true)
   }
-  const needsName = !codeEntry || joiningStarted || !initialName.trim()
+  const needsName = !codeEntry || editingName || joiningStarted || !initialName.trim()
   return <main className="setup-screen">
     <header className="setup-header"><a className="brand" href="#home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>THE CARD TABLE</small></span></a><span className="setup-local"><span className="live-dot" /> ONLINE ROOMS</span></header>
     <section className="setup-content online-setup-content">
@@ -268,7 +270,7 @@ function OnlineSetup({
       <div className="setup-card online-card">
         <span className="eyebrow">{joiningStarted ? 'JOIN YOUR FRIEND' : initialRoomCode ? 'ROOM INVITATION' : codeEntry ? 'JOIN AN EXISTING TABLE' : 'START A MULTIPLAYER TABLE'}</span>
         <h2>{joiningStarted ? 'You’re almost at the table.' : codeEntry ? 'Enter your room code.' : initialRoomCode ? `Room ${initialRoomCode}` : 'What should we call you?'}</h2>
-        {needsName ? <><label className="online-field-label" htmlFor="online-name">YOUR NAME</label><input className="online-field" id="online-name" maxLength={20} value={initialName} onChange={(event) => onNameChange(event.target.value)} placeholder="Enter your name" autoComplete="nickname" /></> : <div className="joining-name"><span className="setup-avatar tone-0">{initialName.trim().charAt(0).toUpperCase() || '?'}</span><span>Joining as <strong>{initialName || 'your name'}</strong></span><button type="button" onClick={() => { setCodeEntry(false); setLocalError('') }}>CHANGE</button></div>}
+        {needsName ? <><label className="online-field-label" htmlFor="online-name">YOUR NAME</label><input className="online-field" id="online-name" maxLength={20} value={initialName} onChange={(event) => onNameChange(event.target.value)} placeholder="Enter your name" autoComplete="nickname" /></> : <div className="joining-name"><span className="setup-avatar tone-0">{initialName.trim().charAt(0).toUpperCase() || '?'}</span><span className="joining-name-copy"><small>PLAYER NAME</small><strong>{initialName || 'Your name'}</strong></span><button className="edit-name-button" type="button" onClick={() => { setEditingName(true); setLocalError('') }}>Change</button></div>}
         {joiningStarted && <div className="room-player-preview" aria-live="polite">{players?.map((player) => <span key={player.id}>{player.name}{player.isHost ? ' · HOST' : ''}</span>)}</div>}
         {codeEntry && <><label className="online-field-label" htmlFor="room-code">ROOM CODE</label><input className="online-field room-id-field" id="room-code" maxLength={8} value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} autoCapitalize="characters" autoComplete="off" placeholder="Enter room code" /></>}
         {(error || localError) && <p className="setup-error" role="alert">{localError || error}</p>}
@@ -412,6 +414,6 @@ function MultiplayerGame({ initialRoomCode, onPlayLocal }: { initialRoomCode: st
 export function LeastCountGame({ initialRoomCode = '' }: { initialRoomCode?: string }) {
   const convexAvailable = useConvexAvailability()
   const [playLocal, setPlayLocal] = useState(false)
-  if (!convexAvailable || playLocal) return <LocalLeastCountGame />
+  if (!convexAvailable || playLocal) return <LocalLeastCountGame onMultiplayer={convexAvailable ? () => setPlayLocal(false) : undefined} />
   return <MultiplayerGame initialRoomCode={initialRoomCode} onPlayLocal={() => setPlayLocal(true)} />
 }
