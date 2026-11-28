@@ -41,9 +41,7 @@ export function createDeck(playerCount: number): Card[] {
 export function cardPoints(card: Card, jokerRank: Rank): number {
   if (card.rank === 'JOKER' || card.rank === jokerRank) return 0
   if (card.rank === 'A') return 1
-  if (card.rank === 'J') return 11
-  if (card.rank === 'Q') return 12
-  if (card.rank === 'K') return 13
+  if (card.rank === 'J' || card.rank === 'Q' || card.rank === 'K') return 10
   return Number(card.rank)
 }
 
