@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Clipboard, Crown, Plus, Shield, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BellRing, Check, CircleHelp, Clipboard, Crown, Plus, Shield, Users, X } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { useConvexAvailability } from '@/app/convex-provider'
 import {
@@ -74,6 +74,7 @@ function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode
   const [notice, setNotice] = useState('Choose one card, or several cards of the same rank.')
   const [showConfirm, setShowConfirm] = useState(false)
   const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const [showTurnAlert, setShowTurnAlert] = useState(false)
   const turnPlayer = game.players.find((item) => item.id === game.currentPlayerId)!
   const player = game.players.find((item) => item.id === (viewerId ?? game.currentPlayerId)) ?? turnPlayer
   const isYourTurn = player.id === game.currentPlayerId
@@ -83,6 +84,22 @@ function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode
   const openCard = game.discardPile.at(-1)
   const visibleOpponents = game.players.filter((item) => item.id !== player.id)
   const selectedRank = selected[0]?.rank
+
+  useEffect(() => {
+    if (!isYourTurn) {
+      setShowTurnAlert(false)
+      return
+    }
+
+    setShowTurnAlert(true)
+    const timeoutId = window.setTimeout(() => setShowTurnAlert(false), 1500)
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate([140, 70, 140])
+    }
+
+    return () => window.clearTimeout(timeoutId)
+  }, [game.currentPlayerId, isYourTurn, player.id])
+
   const handGroups = useMemo(() => {
     const map = new Map<string, number>()
     hand.forEach((card) => map.set(card.rank, (map.get(card.rank) ?? 0) + 1))
@@ -132,7 +149,8 @@ function GameTable({ game, onGameChange, onEndRound, onEndGame, onExit, roomCode
 
   return <main className="game-shell">
     <header className="topbar"><a className="brand" href="#home" aria-label="Least Count home"><span className="brand-mark">L<span>♠</span></span><span>LEAST COUNT<small>{roomCode ? 'ONLINE TABLE' : 'LOCAL PASS-AND-PLAY'}</small></span></a><div className="room-meta"><span className="live-dot" /> {game.players.length} PLAYERS <b>·</b> <span>ROUND {String(game.round).padStart(2, '0')}</span><span className="room-code">{roomCode ? `ROOM ${roomCode}` : `TABLE ${String(game.startingPlayerIndex + 1).padStart(2, '0')}`}</span></div><button className="exit-game" type="button" onClick={onExit}><ArrowLeft size={14} /> LOBBY</button></header>
-    <div className="game-layout"><section className="table-column" aria-label="Game table"><div className="round-strip"><span className="round-pill">ROUND {String(game.round).padStart(2, '0')}</span><span className="round-note">First to 101 is out <span>·</span> Last player standing wins</span><span className={`active-turn-label ${isYourTurn ? 'is-your-turn' : ''}`}><span className="pulse-dot" /> {turnPlayer.name.toUpperCase()}’S TURN</span></div>
+    {showTurnAlert && <div className="turn-alert-toast" role="status" aria-live="assertive" aria-atomic="true"><span className="turn-alert-icon"><BellRing size={19} aria-hidden="true" /></span><span className="turn-alert-copy"><strong>YOUR TURN</strong><span>{player.name}, you&apos;re up.</span></span></div>}
+    <div className="game-layout"><section className="table-column" aria-label="Game table"><div className="round-strip"><span className="round-pill">ROUND {String(game.round).padStart(2, '0')}</span><span className="round-note">First to 101 is out <span>·</span> Last player standing wins</span><span className={`active-turn-label ${isYourTurn ? 'is-your-turn' : ''}`}><span className="pulse-dot" /> {isYourTurn ? 'YOUR TURN' : `${turnPlayer.name.toUpperCase()}’S TURN`}</span></div>
       <div className="felt-table"><div className="table-inner-line" />
         <div className={`opponent-roster opponent-count-${visibleOpponents.length}`}>{visibleOpponents.map((other, index) => <PlayerToken key={other.id} player={other} active={other.id === game.currentPlayerId} count={game.hands[other.id]?.length ?? 0} />)}</div>
         <div className="table-center"><div className="table-caption" role={error ? 'alert' : 'status'}><span className="pulse-dot" /> {error || (isYourTurn ? notice : `${turnPlayer.name} is playing. Your hand is shown only to you.`)}</div><div className="play-area">

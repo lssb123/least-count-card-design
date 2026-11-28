@@ -76,3 +76,11 @@ button { color: inherit; font: inherit; cursor: pointer; }
 .active-turn-label.is-your-turn{padding:6px 10px;border:1px solid #d3b87338;border-radius:999px;background:#d3b87312;color:#f0dc9c}
 .current-seat.is-your-turn .your-tag{border:1px solid #d3b87366;border-radius:999px;background:#d3b87318;box-shadow:0 0 14px #d3b87318;color:#f0dc9c}
 .current-seat.is-your-turn .your-live{box-shadow:0 0 0 3px #d3b87322,0 0 10px #d3b87380}
+.turn-alert-toast{position:fixed;top:calc(76px + max(12px,env(safe-area-inset-top)));left:50%;z-index:1000;display:flex;align-items:center;gap:12px;width:min(calc(100vw - 28px),390px);padding:14px 17px;transform:translateX(-50%);border:1px solid #e4c775;border-radius:14px;background:linear-gradient(135deg,#263a2c,#17251b);box-shadow:0 18px 45px #0009,0 0 0 4px #d3b87324;color:#f6f0df;pointer-events:none;animation:turn-alert-in .2s ease-out both}
+.turn-alert-icon{display:grid;place-items:center;flex:none;width:38px;height:38px;border:1px solid #e4c77566;border-radius:11px;background:#d3b8731c;color:#f2d98f}
+.turn-alert-copy{display:flex;flex-direction:column;gap:3px}.turn-alert-copy strong{font-size:13px;letter-spacing:.15em;color:#ffe8a6}.turn-alert-copy span{font-size:12px;color:#e3e4d9}
+.active-turn-label.is-your-turn{padding:7px 12px;border:1px solid #e4c775;border-radius:999px;background:#d3b87320;color:#ffe8a6;font-size:10px;font-weight:800;letter-spacing:.15em;box-shadow:0 0 0 3px #d3b8731c,0 0 22px #d3b87330}
+.active-turn-label.is-your-turn .pulse-dot{background:#f0cf72;box-shadow:0 0 0 4px #f0cf7224,0 0 14px #f0cf72}
+.current-seat.is-your-turn .your-tag{padding:4px 9px;font-size:9px;font-weight:700}
+@keyframes turn-alert-in{from{opacity:0;transform:translate(-50%,-12px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@media(max-width:760px){.turn-alert-toast{top:calc(64px + max(10px,env(safe-area-inset-top)));width:min(calc(100vw - 24px),390px);padding:13px 15px}.turn-alert-copy strong{font-size:14px}.turn-alert-copy span{font-size:13px}.active-turn-label.is-your-turn{padding:7px 9px;font-size:9px}}
