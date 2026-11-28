@@ -14,6 +14,15 @@ function getPlayer(room: { players: Array<{ id: string; name: string; token: str
   return room.players.find((player) => player.token === token)
 }
 
+function nextPlayerAfterLeaving(players: any[], playerId: string) {
+  const index = players.findIndex((player) => player.id === playerId)
+  for (let offset = 1; offset < players.length; offset++) {
+    const candidate = players[(index + offset) % players.length]
+    if (!candidate.eliminated && !candidate.left) return candidate.id
+  }
+  return undefined
+}
+
 function validateGame(game: any, players: Array<{ id: string }>) {
   if (!game || typeof game !== 'object' || !Array.isArray(game.players) || !game.hands || typeof game.hands !== 'object') {
     throw new Error('The game state is invalid.')
@@ -90,6 +99,7 @@ export const joinRoom = mutation({
     const roomCode = normalizeCode(args.roomCode)
     const room = await ctx.db.query('rooms').withIndex('by_room_code', (q) => q.eq('roomCode', roomCode)).unique()
     if (!room) throw new Error('Room not found. Check the room code and try again.')
+    if (room.status === 'ended') throw new Error('This room has ended. Ask the host for a new room code.')
     if (room.status !== 'lobby') throw new Error('This game has already started.')
     if (room.players.length >= 8) throw new Error('This room is full (8 players maximum).')
     if (!args.name.trim() || args.playerToken.length < 20 || args.playerId.length < 8) throw new Error('Enter a player name to join.')
@@ -157,6 +167,56 @@ export const endRound = mutation({
     })
     const game = { ...room.game, players, roundResult: { declarer: player.id, successful: lowerThanAll, scores } }
     await ctx.db.patch(room._id, { game, revision: room.revision + 1 })
+    return null
+  },
+})
+
+export const leaveGame = mutation({
+  args: { roomCode: v.string(), playerToken: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.query('rooms').withIndex('by_room_code', (q) => q.eq('roomCode', normalizeCode(args.roomCode))).unique()
+    if (!room) return null
+    const leavingPlayer = getPlayer(room, args.playerToken)
+    if (!leavingPlayer || room.status !== 'playing' || !room.game) return null
+    const gamePlayer = room.game.players.find((player: any) => player.id === leavingPlayer.id)
+    if (!gamePlayer || gamePlayer.left) return null
+
+    const players = room.game.players.map((player: any) => player.id === leavingPlayer.id
+      ? { ...player, left: true, eliminated: true }
+      : player)
+    const currentPlayerLeaving = room.game.currentPlayerId === leavingPlayer.id
+    const nextPlayerId = currentPlayerLeaving ? nextPlayerAfterLeaving(players, leavingPlayer.id) : room.game.currentPlayerId
+    const remainingPlayers = players.filter((player: any) => !player.eliminated && !player.left)
+    const game = {
+      ...room.game,
+      players,
+      currentPlayerId: nextPlayerId ?? room.game.currentPlayerId,
+      awaitingDraw: currentPlayerLeaving ? false : room.game.awaitingDraw,
+      previousOpenCard: currentPlayerLeaving ? null : room.game.previousOpenCard,
+    }
+    const roomPlayers = leavingPlayer.isHost && nextPlayerId
+      ? room.players.map((player) => ({ ...player, isHost: player.id === nextPlayerId }))
+      : room.players
+    await ctx.db.patch(room._id, {
+      players: roomPlayers,
+      game,
+      status: remainingPlayers.length ? 'playing' : 'ended',
+      revision: room.revision + 1,
+    })
+    return null
+  },
+})
+
+export const endGame = mutation({
+  args: { roomCode: v.string(), playerToken: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const room = await ctx.db.query('rooms').withIndex('by_room_code', (q) => q.eq('roomCode', normalizeCode(args.roomCode))).unique()
+    if (!room || room.status === 'ended') throw new Error('This game has already ended.')
+    const player = getPlayer(room, args.playerToken)
+    if (!player?.isHost) throw new Error('Only the host can end this game.')
+    await ctx.db.patch(room._id, { status: 'ended', game: undefined, revision: room.revision + 1 })
     return null
   },
 })
